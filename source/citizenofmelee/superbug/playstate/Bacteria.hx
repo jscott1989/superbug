@@ -4,18 +4,55 @@ import flixel.FlxSprite;
 import flixel.util.FlxColor;
 import flixel.math.FlxRandom;
 import flixel.math.FlxPoint;
+import flixel.math.FlxVector;
 import openfl.geom.Rectangle;
 import openfl.geom.Point;
 using flixel.util.FlxSpriteUtil;
+import flixel.FlxG;
+import flixel.system.FlxSound;
 
 class Bacteria extends FlxSprite {
 
+    var state:BacteriaState;
+
+    static var COLOURS = [
+        FlxColor.fromString("#D7031C"),
+        FlxColor.fromString("#E3573C"),
+        FlxColor.fromString("#EA640B"),
+        FlxColor.fromString("#F3994D"),
+        FlxColor.fromString("#FFE401"),
+        FlxColor.fromString("#FEED59"),
+        FlxColor.fromString("#B4CB01"),
+        FlxColor.fromString("#CCD755"),
+        FlxColor.fromString("#32A42B"),
+        FlxColor.fromString("#7FBB5B"),
+        FlxColor.fromString("#06A199"),
+        FlxColor.fromString("#67BCB7"),
+        FlxColor.fromString("#14ACDE"),
+        FlxColor.fromString("#77C2E9"),
+        FlxColor.fromString("#006BB3"),
+        FlxColor.fromString("#2C89C6"),
+        FlxColor.fromString("#503A8D"),
+        FlxColor.fromString("#7C68A7"),
+        FlxColor.fromString("#7F378B"),
+        FlxColor.fromString("#9E6CA7"),
+        FlxColor.fromString("#A90C5D"),
+        FlxColor.fromString("#CC5688"),
+        FlxColor.fromString("#E2006C"),
+        FlxColor.fromString("#E87392")
+    ];
+
+    static var EAT_SOUND: FlxSound;
+
     static var BASE_HEIGHT = 300;
-    static var BORDER_SCALE = 1.5;
+    static var BORDER_SCALE = 2;
     static var BASE_OBJECT_SIZE = 60;
     static var IDLE_ANIMATION_FRAMES_BASE = 8;
     static var IDLE_ANIMATION_FPS_BASE = 20;
     static var MUTATION_RATE = 0.05;
+
+    static var MAX_STEERING_BASE = 1;
+    static var MAX_VELOCITY_BASE = 100;
 
     // Record DNA positions
     static var DNA_SIZE = 20;
@@ -33,31 +70,101 @@ class Bacteria extends FlxSprite {
     static var CIRCLE_LIKELIHOOD = 11;
     static var IDLE_ANIMATION_FRAMES = 12;
     static var IDLE_ANIMATION_FPS = 13;
+    static var MAX_STEERING = 14;
+    static var MAX_VELOCITY = 15;
 
     static var NUMBER_OF_OVERLAY_OBJECTS = 1000;
 
     var dna:Array<Float>;
+
+    public var playState:PlayState;
+
+    public function seek(target:FlxPoint) {
+        var max_velocity = MAX_VELOCITY_BASE * (dna[MAX_VELOCITY] * 2 + 0.1);
+        var max_steering = MAX_STEERING_BASE * (dna[MAX_STEERING] * 2 + 0.1);
+
+        var mid = getGraphicMidpoint();
+
+        var desired_velocity = new FlxVector(target.x - mid.x, target.y - mid.y).normalize().scale(max_velocity);
+        var steering = new FlxVector(desired_velocity.x - _velocity.x, desired_velocity.y - _velocity.y);
+        steering.truncate(max_steering);
+        steering.x /= mass;
+        steering.y /= mass;
+
+        return steering;
+    }
+
+    public function flee(target:FlxPoint) {
+        var max_velocity = MAX_VELOCITY_BASE * (dna[MAX_VELOCITY] * 2 + 0.1);
+        var max_steering = MAX_STEERING_BASE * (dna[MAX_STEERING] * 2 + 0.1);
+
+        var mid = getGraphicMidpoint();
+
+        var desired_velocity = new FlxVector(mid.x - target.x, mid.y - target.y).normalize().scale(max_velocity);
+        var steering = new FlxVector(desired_velocity.x - _velocity.x, desired_velocity.y - _velocity.y);
+        steering.truncate(max_steering);
+        steering.x /= mass;
+        steering.y /= mass;
+
+        return steering;
+    }
+
+    public function addSteering(steering:FlxVector) {
+        var max_velocity = MAX_VELOCITY_BASE * (dna[MAX_VELOCITY] * 2 + 0.1);
+        _velocity.x += steering.x;
+        _velocity.y += steering.y;
+        _velocity.truncate(max_velocity);
+    }
+    
+    var _velocity = new FlxVector(0, 0);
+    public override function update(elapsed:Float) {
+        // Now see if any food is in the centre of the bacteria
+        var mid = getGraphicMidpoint();
+        var minX = mid.x - width * 0.2;
+        var maxX = mid.x + width * 0.2;
+        var minY = mid.y - height * 0.2;
+        var maxY = mid.y + height * 0.2;
+
+        for (food in playState.food) {
+            var foodPosition = food.getGraphicMidpoint();
+            if (foodPosition.x > minX && foodPosition.x < maxX && foodPosition.y > minY && foodPosition.y < maxY) {
+                // eat it
+                EAT_SOUND.play();
+                playState.food.remove(food);
+                food.destroy();
+            }
+        }
+        
+        state.update(this, elapsed);
+
+        x += (_velocity.x * elapsed);
+        y += (_velocity.y * elapsed);
+
+        super.update(elapsed);
+    }
 
     /**
      * Create a new bacteria at the same location with the same DNA (+ mutations)
      */
     public function createChild() {
         var random = new FlxRandom();
-        return new Bacteria(x, y, Lambda.array(Lambda.map(dna, function(n) {
+        var b = new Bacteria(playState, x, y, Lambda.array(Lambda.map(dna, function(n) {
             var newValue = n + random.floatNormal(0, MUTATION_RATE);
-            while (newValue < 0) {
-                newValue += 1;
+            if (newValue < 0) {
+                newValue = 0 - newValue;
             }
 
-            while (newValue > 1) {
-                newValue -= 1;
+            if (newValue > 1) {
+                newValue = 1 - (newValue - 1);
             }
 
             return newValue;
         })));
+        playState.bacteria.push(b);
+        playState.add(b);
     }
 
-    public function new(x, y, dna: Array<Float>=null) {
+    public function new(playState:PlayState, x, y, dna: Array<Float>=null) {
         if (dna == null) {
             var r = new FlxRandom();
             dna = new Array<Float>();
@@ -65,16 +172,22 @@ class Bacteria extends FlxSprite {
                 dna.push(r.float());
             }
         }
+        this.playState = playState;
         this.dna = dna;
         super(x, y);
         generateImage();
         animation.play("idle");
+        EAT_SOUND = FlxG.sound.load(AssetPaths.eat__wav);
+
+        state = new HungryState();
      }
 
      function getColour(colourF:Float) {
-        //  TODO: make this gradient
-         var r = new FlxRandom(Math.floor(colourF * 100));
-         return r.color();
+         var c = COLOURS[Math.round(colourF * 24)];
+         if (c == null) {
+             trace("NULL", c, colourF);
+         }
+         return c;
      }
 
      /**

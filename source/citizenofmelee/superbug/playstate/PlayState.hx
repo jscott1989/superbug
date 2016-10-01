@@ -7,10 +7,19 @@ import flixel.util.FlxColor;
 import flixel.FlxCamera;
 import flixel.math.FlxPoint;
 import flixel.FlxSprite;
+import flixel.group.FlxSpriteGroup;
+// import cpp.vm.Thread;
+import neko.vm.Thread;
 
 class PlayState extends FlxState {
 
 	var movingFrom: {startX:Float, startY:Float, moveFromX: Float, moveFromY: Float};
+
+	var firstBacteria:Bacteria;
+
+	var foodGroup = new FlxSpriteGroup();
+	public var bacteria = new Array<Bacteria>();
+	public var food = new Array<Food>();
 
 	override public function create():Void {
 		super.create();
@@ -23,13 +32,22 @@ class PlayState extends FlxState {
 		menu.loadGraphic(AssetPaths.menu_bar__png);
 		add(menu);
 
-		var r = new FlxRandom();
-		var firstBacteria = new Bacteria(100, 300);
-		var nextX = 0.0;
-		for (i in 0...10) {
-			var lastBacteria = firstBacteria.createChild();
-			add(lastBacteria);
-			lastBacteria.x = nextX;
+
+		var happinessicon = new FlxSprite(-10000 + 10, -10000 + 10);
+		happinessicon.loadGraphic(AssetPaths.happiness__png);
+		add(happinessicon);
+
+		add(foodGroup);
+		
+		firstBacteria = new Bacteria(this, 300, 300);
+		bacteria.push(firstBacteria);
+		add(firstBacteria);
+
+		// var r = new FlxRandom();
+		// var nextX = 0.0;
+		// for (i in 0...1) {
+		// 	var lastBacteria = firstBacteria.createChild();
+		// 	lastBacteria.x = nextX;
 
 			// var nextY = lastBacteria.height + 100;
 			// for (n in 0...10) {
@@ -40,8 +58,8 @@ class PlayState extends FlxState {
 			// }
 
 
-			nextX += lastBacteria.width + 100;
-		}
+		// 	nextX += lastBacteria.width + 100;
+		// }
 		super.create();
 		setCameraZoom(0.5);
 	}
@@ -52,11 +70,13 @@ class PlayState extends FlxState {
 		FlxG.camera.scroll.x = correctCameraX(centrePoint.x - FlxG.camera.width / 2);
 		FlxG.camera.scroll.y = correctCameraY(centrePoint.y - FlxG.camera.height / 2);
 		FlxG.camera.antialiasing = true;
+		FlxG.camera.bgColor = FlxColor.fromString("#F3F1DC");
 
 		// Set up the UI camera
 		var uiCamera = new FlxCamera(0, 0, Std.int(FlxG.width), Std.int(FlxG.height));
 		uiCamera.scroll.set(-10000, -10000);
 		uiCamera.bgColor = FlxColor.TRANSPARENT;
+		uiCamera.antialiasing = true;
 		FlxG.cameras.add(uiCamera);
 	}
 
@@ -64,7 +84,7 @@ class PlayState extends FlxState {
 		var left = newX * FlxG.camera.zoom; // This has to stay above 0
 		var right = newX + FlxG.camera.width; // Less than 3776
 		if (left < 0) {
-			newX = 0/FlxG.camera.zoom;
+			newX = 0;
 		} else if (right > 3776) {
 			newX = 3776 - FlxG.camera.width;
 		}
@@ -79,17 +99,26 @@ class PlayState extends FlxState {
 		if (FlxG.camera.height > 3776) {
 			newY = 1888 - (FlxG.camera.height / 2);
 		} else {
-			if (top < 0) {
-				newY = 0/FlxG.camera.zoom;
-			} else if (bottom > 3776) {
-				newY = 3776 - FlxG.camera.height;
+			if (top < -95) {
+				newY = -95/FlxG.camera.zoom;
+			} else if (bottom > (3776 + 200)) {
+				newY = (3776 + 200) - FlxG.camera.height;
 			}
 		}
 		return newY;
 	}
 
+	var addBacteriaTimeout = 0.0;
 	override public function update(elapsed:Float):Void {
 		super.update(elapsed);
+
+		addBacteriaTimeout += elapsed;
+
+		if (addBacteriaTimeout > 2) {
+			addBacteriaTimeout = 0;
+			var thread = Thread.create (firstBacteria.createChild);
+			// firstBacteria.createChild();
+		}
 
 		// We only adjust the window if we're not on a menu
 		var onMenu = false;
@@ -99,8 +128,7 @@ class PlayState extends FlxState {
 		}
 
 		if (!onMenu && FlxG.mouse.wheel != 0) {
-			// Mouse wheel logic goes here, for example zooming in / out:
-			var newZoom = FlxG.camera.zoom + (FlxG.mouse.wheel / 10);
+			var newZoom = FlxG.camera.zoom + (FlxG.mouse.wheel / 60);
 			var maxZoom = 1.0;
 			var minZoom = 0.1;
 			if (newZoom >= minZoom && newZoom <= maxZoom) {
@@ -123,6 +151,11 @@ class PlayState extends FlxState {
 				if (FlxG.camera.scroll.y != newY) { FlxG.camera.scroll.y = newY; }
 			}
 		} else if (!onMenu && FlxG.mouse.justPressed) {
+			// Place food
+			var f = new Food(FlxG.mouse.x, FlxG.mouse.y);
+			foodGroup.add(f);
+			food.push(f);
+
 			// Start moving
 			movingFrom = {startX: FlxG.camera.scroll.x,
 						  startY: FlxG.camera.scroll.y,
