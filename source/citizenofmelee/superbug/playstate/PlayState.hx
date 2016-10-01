@@ -19,6 +19,10 @@ class PlayState extends FlxState {
 		background.loadGraphic(AssetPaths.dish__png);
 		add(background);
 
+		var menu = new FlxSprite(-10000, -10000);
+		menu.loadGraphic(AssetPaths.menu_bar__png);
+		add(menu);
+
 		var r = new FlxRandom();
 		var firstBacteria = new Bacteria(100, 300);
 		var nextX = 0.0;
@@ -48,6 +52,12 @@ class PlayState extends FlxState {
 		FlxG.camera.scroll.x = correctCameraX(centrePoint.x - FlxG.camera.width / 2);
 		FlxG.camera.scroll.y = correctCameraY(centrePoint.y - FlxG.camera.height / 2);
 		FlxG.camera.antialiasing = true;
+
+		// Set up the UI camera
+		var uiCamera = new FlxCamera(0, 0, Std.int(FlxG.width), Std.int(FlxG.height));
+		uiCamera.scroll.set(-10000, -10000);
+		uiCamera.bgColor = FlxColor.TRANSPARENT;
+		FlxG.cameras.add(uiCamera);
 	}
 
 	function correctCameraX(newX:Float) {
@@ -81,7 +91,14 @@ class PlayState extends FlxState {
 	override public function update(elapsed:Float):Void {
 		super.update(elapsed);
 
-		if (FlxG.mouse.wheel != 0) {
+		// We only adjust the window if we're not on a menu
+		var onMenu = false;
+		var yPos = FlxG.mouse.screenY * FlxG.camera.zoom;
+		if (yPos > 585 || yPos < 89) {
+			onMenu = true;
+		}
+
+		if (!onMenu && FlxG.mouse.wheel != 0) {
 			// Mouse wheel logic goes here, for example zooming in / out:
 			var newZoom = FlxG.camera.zoom + (FlxG.mouse.wheel / 10);
 			var maxZoom = 1.0;
@@ -105,9 +122,8 @@ class PlayState extends FlxState {
 				if (FlxG.camera.scroll.x != newX) { FlxG.camera.scroll.x = newX; }
 				if (FlxG.camera.scroll.y != newY) { FlxG.camera.scroll.y = newY; }
 			}
-		} else if (FlxG.mouse.pressed) {
+		} else if (!onMenu && FlxG.mouse.justPressed) {
 			// Start moving
-			// TODO: Move this so it doesn't impact on buttons/chrome/etc
 			movingFrom = {startX: FlxG.camera.scroll.x,
 						  startY: FlxG.camera.scroll.y,
 						  moveFromX: FlxG.mouse.screenX,
