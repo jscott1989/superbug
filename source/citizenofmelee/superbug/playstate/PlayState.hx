@@ -20,11 +20,23 @@ class PlayState extends FlxState {
 		add(background);
 
 		var r = new FlxRandom();
-		var dna = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
-		var lastBacteria = new Bacteria(100, 300, dna);
+		var firstBacteria = new Bacteria(100, 300);
+		var nextX = 0.0;
 		for (i in 0...10) {
+			var lastBacteria = firstBacteria.createChild();
 			add(lastBacteria);
-			lastBacteria = new Bacteria(lastBacteria.x + lastBacteria.width + 50, 300);
+			lastBacteria.x = nextX;
+
+			// var nextY = lastBacteria.height + 100;
+			// for (n in 0...10) {
+			// 	var n = lastBacteria.createChild();
+			// 	add(n);
+			// 	n.y = nextY;
+			// 	nextY += n.height;
+			// }
+
+
+			nextX += lastBacteria.width + 100;
 		}
 		super.create();
 		setCameraZoom(0.5);
@@ -33,9 +45,37 @@ class PlayState extends FlxState {
 	function setCameraZoom(newZoom:Float) {
 		var centrePoint = new FlxPoint(FlxG.camera.scroll.x + FlxG.camera.width / 2, FlxG.camera.scroll.y + FlxG.camera.height / 2);
 		FlxG.cameras.reset(new FlxCamera(0, 0, Math.floor(FlxG.width * (1/newZoom)), Math.floor(FlxG.height * (1/newZoom)), newZoom));
-		FlxG.camera.scroll.x = centrePoint.x - FlxG.camera.width / 2;
-		FlxG.camera.scroll.y = centrePoint.y - FlxG.camera.height / 2;
+		FlxG.camera.scroll.x = correctCameraX(centrePoint.x - FlxG.camera.width / 2);
+		FlxG.camera.scroll.y = correctCameraY(centrePoint.y - FlxG.camera.height / 2);
 		FlxG.camera.antialiasing = true;
+	}
+
+	function correctCameraX(newX:Float) {
+		var left = newX * FlxG.camera.zoom; // This has to stay above 0
+		var right = newX + FlxG.camera.width; // Less than 3776
+		if (left < 0) {
+			newX = 0/FlxG.camera.zoom;
+		} else if (right > 3776) {
+			newX = 3776 - FlxG.camera.width;
+		}
+		return newX;
+	}
+
+	function correctCameraY(newY:Float) {
+		var top = newY * FlxG.camera.zoom;
+		var bottom = newY + FlxG.camera.height;
+
+		// Special case - if we're zoomed out larger than the dish, center it
+		if (FlxG.camera.height > 3776) {
+			newY = 1888 - (FlxG.camera.height / 2);
+		} else {
+			if (top < 0) {
+				newY = 0/FlxG.camera.zoom;
+			} else if (bottom > 3776) {
+				newY = 3776 - FlxG.camera.height;
+			}
+		}
+		return newY;
 	}
 
 	override public function update(elapsed:Float):Void {
@@ -56,8 +96,13 @@ class PlayState extends FlxState {
 				movingFrom = null;
 			} else {
 				var newX = movingFrom.startX - (FlxG.mouse.screenX - movingFrom.moveFromX);
-				if (FlxG.camera.scroll.x != newX) { FlxG.camera.scroll.x = newX; }
 				var newY = movingFrom.startY - (FlxG.mouse.screenY - movingFrom.moveFromY);
+
+				newX = correctCameraX(newX);
+				newY = correctCameraY(newY);
+
+
+				if (FlxG.camera.scroll.x != newX) { FlxG.camera.scroll.x = newX; }
 				if (FlxG.camera.scroll.y != newY) { FlxG.camera.scroll.y = newY; }
 			}
 		} else if (FlxG.mouse.pressed) {

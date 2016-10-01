@@ -15,6 +15,7 @@ class Bacteria extends FlxSprite {
     static var BASE_OBJECT_SIZE = 60;
     static var IDLE_ANIMATION_FRAMES_BASE = 8;
     static var IDLE_ANIMATION_FPS_BASE = 20;
+    static var MUTATION_RATE = 0.05;
 
     // Record DNA positions
     static var DNA_SIZE = 20;
@@ -36,6 +37,25 @@ class Bacteria extends FlxSprite {
     static var NUMBER_OF_OVERLAY_OBJECTS = 1000;
 
     var dna:Array<Float>;
+
+    /**
+     * Create a new bacteria at the same location with the same DNA (+ mutations)
+     */
+    public function createChild() {
+        var random = new FlxRandom();
+        return new Bacteria(x, y, Lambda.array(Lambda.map(dna, function(n) {
+            var newValue = n + random.floatNormal(0, MUTATION_RATE);
+            while (newValue < 0) {
+                newValue += 1;
+            }
+
+            while (newValue > 1) {
+                newValue -= 1;
+            }
+
+            return newValue;
+        })));
+    }
 
     public function new(x, y, dna: Array<Float>=null) {
         if (dna == null) {
@@ -192,15 +212,17 @@ class Bacteria extends FlxSprite {
         return tmpFrame;
      }
 
+     function getAmountToShrink(frame:Int) {
+         var smallestSize = (dna[COMPRESS_SIZE] * 0.5) + 0.4;
+         var frames = Math.floor(IDLE_ANIMATION_FRAMES_BASE * (dna[IDLE_ANIMATION_FRAMES] + 0.5));
+         return (frame / frames) * (1 - smallestSize);
+     }
+
      /**
       * Modify the given points for idle animation
       */
      function generateIdleFrame(frameWidth:Float, frameHeight:Float, points:Array<FlxPoint>, frame:Int) {
-         var smallest_size = (dna[COMPRESS_SIZE] * 0.5) + 0.4;
-
-         var frames = Math.floor(IDLE_ANIMATION_FRAMES_BASE * (dna[IDLE_ANIMATION_FRAMES] + 0.5));
-
-         var amount_to_shrink = (frame / frames) * (1 - smallest_size); 
+         var amountToShrink = getAmountToShrink(frame); 
 
         //  Now each point needs to move amount_to_shrink % towards the centre
 
@@ -210,9 +232,8 @@ class Bacteria extends FlxSprite {
 
             var angle = p.angleBetween(centrePoint);
 
-            p.y -=  Math.cos(angle) * 10;
-            p.x += Math.sin(angle) * 10;
-            return p;
+            var amountToMove = p.distanceTo(centrePoint) * amountToShrink;
+            return new FlxPoint(p.x + Math.sin(angle) * amountToMove, p.y -  Math.cos(angle) * amountToMove);
         }));
      }
 }
