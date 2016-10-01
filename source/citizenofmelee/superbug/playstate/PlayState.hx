@@ -20,7 +20,7 @@ class PlayState extends FlxState {
 		add(background);
 
 		var r = new FlxRandom();
-		var dna = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+		var dna = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 		var lastBacteria = new Bacteria(100, 300, dna);
 		for (i in 0...10) {
 			add(lastBacteria);

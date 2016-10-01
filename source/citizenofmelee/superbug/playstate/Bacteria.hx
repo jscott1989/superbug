@@ -4,6 +4,8 @@ import flixel.FlxSprite;
 import flixel.util.FlxColor;
 import flixel.math.FlxRandom;
 import flixel.math.FlxPoint;
+import openfl.geom.Rectangle;
+import openfl.geom.Point;
 using flixel.util.FlxSpriteUtil;
 
 class Bacteria extends FlxSprite {
@@ -11,9 +13,11 @@ class Bacteria extends FlxSprite {
     static var BASE_HEIGHT = 300;
     static var BORDER_SCALE = 1.5;
     static var BASE_OBJECT_SIZE = 60;
+    static var IDLE_ANIMATION_FRAMES_BASE = 8;
+    static var IDLE_ANIMATION_FPS_BASE = 20;
 
     // Record DNA positions
-    static var DNA_SIZE = 10;
+    static var DNA_SIZE = 20;
     static var HEIGHT_SCALE = 0;
     static var WIDTH_SCALE = 1;
     static var COLOUR = 2;
@@ -23,11 +27,13 @@ class Bacteria extends FlxSprite {
     static var SHAPE = 6;
     static var MIDPOINT_DISPLACEMENTS = 7;
     static var COMPRESS_SIZE = 8;
+    static var WALL_THICKESS = 9;
+    static var SQUARE_LIKELIHOOD = 10;
+    static var CIRCLE_LIKELIHOOD = 11;
+    static var IDLE_ANIMATION_FRAMES = 12;
+    static var IDLE_ANIMATION_FPS = 13;
 
     static var NUMBER_OF_OVERLAY_OBJECTS = 1000;
-
-    static var IDLE_ANIMATION_FRAMES = 5;
-    static var IDLE_ANIMATION_FPS = 2;
 
     var dna:Array<Float>;
 
@@ -46,7 +52,9 @@ class Bacteria extends FlxSprite {
      }
 
      function getColour(colourF:Float) {
-         return FlxColor.RED.getLightened(0.7);
+        //  TODO: make this gradient
+         var r = new FlxRandom(Math.floor(colourF * 100));
+         return r.color();
      }
 
      /**
@@ -60,15 +68,18 @@ class Bacteria extends FlxSprite {
         var frameWidth = Math.floor(width * BORDER_SCALE);
         var frameHeight = Math.floor(height * BORDER_SCALE);
 
+        var pattern = generatePattern(frameWidth, frameHeight);
+
         // TODO: Right now we only have idle animations
         // When we have more increase the overall size
-        makeGraphic(frameWidth * IDLE_ANIMATION_FRAMES, frameHeight, FlxColor.TRANSPARENT, true);
+        var frames = Math.floor(IDLE_ANIMATION_FRAMES_BASE * (dna[IDLE_ANIMATION_FRAMES] + 0.5));
+        makeGraphic(frameWidth * frames, frameHeight, FlxColor.TRANSPARENT, true);
 
         var basePoints = generateBasePoints(width, height, frameWidth, frameHeight);
 
         // Generate each frame
-        for (i in 0...IDLE_ANIMATION_FRAMES) {
-            renderFrame(i, frameWidth, frameHeight, generateIdleFrame(frameWidth, frameHeight, basePoints.copy(), i));
+        for (i in 0...frames) {
+            renderFrame(i, frameWidth, frameHeight, pattern, generateIdleFrame(frameWidth, frameHeight, basePoints.copy(), i));
         }
 
         // Reload and set up animations
@@ -76,7 +87,7 @@ class Bacteria extends FlxSprite {
 
         // TODO: There has to be a better way to do this...
         var frameNumbers = new Array<Int>();
-        for (i in 0...IDLE_ANIMATION_FRAMES) {
+        for (i in 0...frames) {
             frameNumbers.push(i);
         }
 
@@ -86,7 +97,9 @@ class Bacteria extends FlxSprite {
         reversed.pop();
         frameNumbers = frameNumbers.concat(reversed);
 
-        animation.add("idle", frameNumbers, IDLE_ANIMATION_FPS, true);
+        var fps = Math.floor(IDLE_ANIMATION_FPS_BASE * (dna[IDLE_ANIMATION_FPS] + 0.5));
+
+        animation.add("idle", frameNumbers, fps, true);
      }
 
      function generateBasePoints(width:Float, height:Float, frameWidth:Float, frameHeight:Float) {
@@ -138,38 +151,45 @@ class Bacteria extends FlxSprite {
          return Lambda.array(Lambda.map(points, function(p) { return new FlxPoint(xOffset + p.x, yOffset + p.y); }));
      }
 
-    // function renderFrame(offsetIndex:Int, frameWidth:Int, frameHeight:Int, points:Array<FlxPoint>) {
-    //     var offsetX = (offsetIndex * frameWidth);
-    //     points = offsetPoints(points, offsetX);
-    //     drawPolygon(points, FlxColor.RED);
-    // }
+    function renderFrame(offsetIndex:Int, frameWidth:Int, frameHeight:Int, pattern:FlxSprite, points:Array<FlxPoint>) {
+        var mask = new FlxSprite();
+        mask.makeGraphic(frameWidth, frameHeight, FlxColor.TRANSPARENT, true);
+        mask.drawPolygon(points, FlxColor.RED);
 
-     function renderFrame(offsetIndex:Int, frameWidth:Int, frameHeight:Int, points:Array<FlxPoint>) {
+        var tmpSprite = new FlxSprite();
+        tmpSprite.makeGraphic(frameWidth, frameHeight, FlxColor.TRANSPARENT, true);
+        FlxSpriteUtil.alphaMaskFlxSprite(pattern, mask, tmpSprite);
+
+        pixels.copyPixels(tmpSprite.pixels, new Rectangle(0, 0, frameWidth, frameHeight), new Point(frameWidth * offsetIndex, 0));
+
+        points = offsetPoints(points, offsetIndex * frameWidth);
+
+        drawPolygon(points, FlxColor.TRANSPARENT, { color: getColour(dna[COLOUR]), thickness: dna[WALL_THICKESS] * 8 + 1 });
+    }
+
+     function generatePattern(frameWidth:Int, frameHeight:Int) {
          var random = new FlxRandom(Math.floor(dna[OVERLAY_RANDOM_SEED] * 100));
          var tmpFrame = new FlxSprite();
-         var offsetX = (offsetIndex * frameWidth);
          tmpFrame.makeGraphic(frameWidth, frameHeight, FlxColor.TRANSPARENT, true);
-
-        tmpFrame.drawPolygon(points, FlxColor.RED);
-        points = offsetPoints(points, offsetX);
 
         var objectSize = BASE_OBJECT_SIZE * (dna[OBJECT_SIZE] + 0.5);
         var colour = getColour(dna[COLOUR]);
 
         for (i in 0...NUMBER_OF_OVERLAY_OBJECTS) {
+            var nextObjectType = random.float();
             var randomPositionX = random.int(0, frameWidth);
             var randomPositionY = random.int(0, frameHeight);
-
-            if (tmpFrame.pixels.getPixel(randomPositionX, randomPositionY) == 16711680) {
-                // This hasn't been drawn on - check that this drawing wouldn't go off the canvas and if it's fine - draw
-
-                if (randomPositionX - objectSize / 2 > 0 && randomPositionY - objectSize / 2 > 0 && randomPositionX + objectSize / 2 < frameWidth && randomPositionY + objectSize / 2 < frameHeight) {
-                    var darkenedColour = colour.getDarkened(random.float(0, 0.8) * (dna[DARKNESS] + 0.5));
-                    drawRoundRect(offsetX + randomPositionX - objectSize / 2, randomPositionY - objectSize / 2, objectSize, objectSize, objectSize * 0.1, objectSize * 0.1, darkenedColour);
-                    tmpFrame.drawRoundRect(randomPositionX - objectSize / 2, randomPositionY - objectSize / 2, objectSize, objectSize, objectSize * 0.1, objectSize * 0.1, darkenedColour);
-                }
+            var darkenedColour = colour.getDarkened(random.float(0, 0.8) * (dna[DARKNESS] + 0.5));
+            if (nextObjectType < dna[SQUARE_LIKELIHOOD]) {
+                tmpFrame.drawRoundRect(randomPositionX - objectSize / 2, randomPositionY - objectSize / 2, objectSize, objectSize, objectSize * 0.1, objectSize * 0.1, darkenedColour);
+            } else if (nextObjectType < dna[SQUARE_LIKELIHOOD] + dna[CIRCLE_LIKELIHOOD]) {
+                tmpFrame.drawCircle(randomPositionX, randomPositionY, objectSize, darkenedColour);
+            } else {
+                tmpFrame.drawTriangle(randomPositionX, randomPositionY, objectSize, darkenedColour);
             }
         }
+
+        return tmpFrame;
      }
 
      /**
@@ -178,7 +198,9 @@ class Bacteria extends FlxSprite {
      function generateIdleFrame(frameWidth:Float, frameHeight:Float, points:Array<FlxPoint>, frame:Int) {
          var smallest_size = (dna[COMPRESS_SIZE] * 0.5) + 0.4;
 
-         var amount_to_shrink = (frame / IDLE_ANIMATION_FRAMES) * (1 - smallest_size); 
+         var frames = Math.floor(IDLE_ANIMATION_FRAMES_BASE * (dna[IDLE_ANIMATION_FRAMES] + 0.5));
+
+         var amount_to_shrink = (frame / frames) * (1 - smallest_size); 
 
         //  Now each point needs to move amount_to_shrink % towards the centre
 
