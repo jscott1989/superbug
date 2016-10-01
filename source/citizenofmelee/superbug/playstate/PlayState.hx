@@ -1,12 +1,12 @@
 package citizenofmelee.superbug.playstate;
 
 import flixel.FlxG;
-import flixel.FlxSprite;
 import flixel.FlxState;
-import flixel.text.FlxText;
-import flixel.ui.FlxButton;
-import flixel.math.FlxMath;
 import flixel.math.FlxRandom;
+import flixel.util.FlxColor;
+import flixel.FlxCamera;
+import flixel.math.FlxPoint;
+import flixel.FlxSprite;
 
 class PlayState extends FlxState {
 
@@ -14,16 +14,42 @@ class PlayState extends FlxState {
 
 	override public function create():Void {
 		super.create();
-		
+
+		var background = new FlxSprite(0, 0);
+		background.loadGraphic(AssetPaths.dish__png);
+		add(background);
+
 		var r = new FlxRandom();
-		for (i in 0...100) {
-			add(new Bacteria(r.float(0, 3000),r.float(0, 3000),[]));
+		var dna = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+		var lastBacteria = new Bacteria(100, 300, dna);
+		for (i in 0...10) {
+			add(lastBacteria);
+			lastBacteria = new Bacteria(lastBacteria.x + lastBacteria.width + 50, 300);
 		}
 		super.create();
+		setCameraZoom(0.5);
+	}
+
+	function setCameraZoom(newZoom:Float) {
+		var centrePoint = new FlxPoint(FlxG.camera.scroll.x + FlxG.camera.width / 2, FlxG.camera.scroll.y + FlxG.camera.height / 2);
+		FlxG.cameras.reset(new FlxCamera(0, 0, Math.floor(FlxG.width * (1/newZoom)), Math.floor(FlxG.height * (1/newZoom)), newZoom));
+		FlxG.camera.scroll.x = centrePoint.x - FlxG.camera.width / 2;
+		FlxG.camera.scroll.y = centrePoint.y - FlxG.camera.height / 2;
+		FlxG.camera.antialiasing = true;
 	}
 
 	override public function update(elapsed:Float):Void {
 		super.update(elapsed);
+
+		if (FlxG.mouse.wheel != 0) {
+			// Mouse wheel logic goes here, for example zooming in / out:
+			var newZoom = FlxG.camera.zoom + (FlxG.mouse.wheel / 10);
+			var maxZoom = 1.0;
+			var minZoom = 0.1;
+			if (newZoom >= minZoom && newZoom <= maxZoom) {
+				setCameraZoom(newZoom);
+			}
+		}
 
 		if (movingFrom != null) {
 			if (!FlxG.mouse.pressed) {
@@ -32,7 +58,6 @@ class PlayState extends FlxState {
 				var newX = movingFrom.startX - (FlxG.mouse.screenX - movingFrom.moveFromX);
 				if (FlxG.camera.scroll.x != newX) { FlxG.camera.scroll.x = newX; }
 				var newY = movingFrom.startY - (FlxG.mouse.screenY - movingFrom.moveFromY);
-				trace(newX, newY);
 				if (FlxG.camera.scroll.y != newY) { FlxG.camera.scroll.y = newY; }
 			}
 		} else if (FlxG.mouse.pressed) {
